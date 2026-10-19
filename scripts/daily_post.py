@@ -146,7 +146,7 @@ def generate_caption(client, scene: str) -> str:
         "Return only the caption."
     )
     response = None
-    candidates = model_candidates("OPENAI_TEXT_MODEL", ("gpt-4o-mini", "gpt-4.1-mini"))
+    candidates = model_candidates("OPENAI_TEXT_MODEL", ("gpt-5-mini",))
     for index, model in enumerate(candidates):
         try:
             response = client.responses.create(model=model, input=prompt, max_output_tokens=180)
