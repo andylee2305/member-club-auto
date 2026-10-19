@@ -77,6 +77,21 @@ class DailyPostTests(unittest.TestCase):
                 "今朝嘆杯咖啡，慢慢開始新一日。\n\n#AI創作",
             )
 
+    def test_gpt5_caption_requests_minimal_reasoning_and_enough_output(self):
+        class Response:
+            output_text = "今日行花市，買咗束花返屋企。"
+
+        class Client:
+            class responses:
+                @staticmethod
+                def create(**kwargs):
+                    self.assertEqual(kwargs["reasoning"], {"effort": "minimal"})
+                    self.assertGreaterEqual(kwargs["max_output_tokens"], 512)
+                    return Response()
+
+        with patch.dict("os.environ", {"OPENAI_TEXT_MODEL": "gpt-5-mini"}):
+            self.assertIn("今日行花市", daily_post.generate_caption(Client(), "flower market"))
+
     def test_hong_kong_11_is_utc_03(self):
         self.assertEqual(
             daily_post.iso_utc(daily_post.publication_time(date(2026, 10, 20))),

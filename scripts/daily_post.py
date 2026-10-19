@@ -149,7 +149,10 @@ def generate_caption(client, scene: str) -> str:
     candidates = model_candidates("OPENAI_TEXT_MODEL", ("gpt-5-mini",))
     for index, model in enumerate(candidates):
         try:
-            response = client.responses.create(model=model, input=prompt, max_output_tokens=180)
+            request = {"model": model, "input": prompt, "max_output_tokens": 1024}
+            if model.startswith("gpt-5"):
+                request["reasoning"] = {"effort": "minimal"}
+            response = client.responses.create(**request)
             print(f"OpenAI caption model: {model}")
             break
         except Exception as exc:
