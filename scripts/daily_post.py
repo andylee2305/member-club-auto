@@ -209,7 +209,22 @@ def generate_photo(client, scene: str) -> bytes:
 def generate(day: date) -> None:
     image_path, manifest_path = paths(day)
     if image_path.exists() and manifest_path.exists():
-        print(f"Reusing existing photo and caption for {day}.")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest.get("date") != day.isoformat() or manifest.get("image") != image_path.relative_to(ROOT).as_posix():
+            raise RuntimeError("Prepared photo/manifest date or image path does not match.")
+        if manifest.get("due_at_utc") != iso_utc(publication_time(day)):
+            raise RuntimeError("Prepared post has an unexpected publication time.")
+        if manifest.get("caption"):
+            print(f"Reusing existing photo and caption for {day}.")
+            return
+        if manifest.get("buffer_post_id"):
+            raise RuntimeError("A scheduled post is missing its caption; inspect it before retrying.")
+        from openai import OpenAI
+
+        client = OpenAI(api_key=required_secret("OPENAI_API_KEY"))
+        manifest["caption"] = generate_caption(client, manifest["scene"])
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        print(f"Generated OpenAI caption for prepared photo {day}.")
         return
     if image_path.exists() != manifest_path.exists():
         raise RuntimeError("Photo/manifest pair is incomplete; inspect it before retrying.")
@@ -315,6 +330,10 @@ def schedule(day: date) -> None:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if manifest["date"] != day.isoformat() or manifest["image"] != image_path.relative_to(ROOT).as_posix():
         raise RuntimeError("Manifest date or image path does not match the requested date.")
+    if manifest.get("due_at_utc") != iso_utc(publication_time(day)):
+        raise RuntimeError("Manifest publication time does not match 11:00 Hong Kong time.")
+    if not isinstance(manifest.get("caption"), str) or not manifest["caption"].strip():
+        raise RuntimeError("OpenAI caption is missing; generate it before scheduling.")
     if publication_time(day) <= datetime.now(timezone.utc):
         raise RuntimeError("The requested 11:00 Hong Kong publishing time has passed.")
     api_key = required_secret("BUFFER_API_KEY")

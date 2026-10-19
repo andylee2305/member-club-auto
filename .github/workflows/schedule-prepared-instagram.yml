@@ -1,0 +1,70 @@
+name: Schedule prepared Kelly Instagram photos
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 12:15 Hong Kong, October 20-30. October 20's post has left Buffer's queue by then.
+    - cron: '15 4 20-30 10 *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-instagram
+  cancel-in-progress: false
+
+jobs:
+  prepared-photos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Generate ten captions with OpenAI API
+        run: |
+          for day in {21..30}; do
+            date="2026-10-${day}"
+            python scripts/daily_post.py generate --date "$date"
+          done
+          git add posts/*.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Write OpenAI captions for ten Kelly photos"
+            git push origin HEAD:${{ github.event.repository.default_branch }}
+          fi
+      - name: Schedule photos in Buffer after October 20 post publishes
+        run: |
+          first_post=$(date -u -d '2026-10-20T03:00:00Z' +%s)
+          now=$(date -u +%s)
+          if [ "$now" -le "$first_post" ]; then
+            echo "Captions are ready. Scheduling begins after the October 20 post publishes."
+            exit 0
+          fi
+          for day in {21..30}; do
+            date="2026-10-${day}"
+            due=$(date -u -d "${date}T03:00:00Z" +%s)
+            if [ "$due" -le "$now" ]; then
+              echo "Publication time has passed for $date; inspect this date in Buffer."
+              continue
+            fi
+            python scripts/daily_post.py preflight --date "$date"
+            python scripts/daily_post.py schedule --date "$date"
+            git add "posts/${date}.json"
+            if ! git diff --cached --quiet; then
+              git commit -m "Record Buffer schedule for $date"
+              git push origin HEAD:${{ github.event.repository.default_branch }}
+            fi
+          done

@@ -21,6 +21,13 @@
 - 貼文設為 Instagram `post`、`automatic`，並設定 Buffer 的 `isAiGenerated: true`。文案亦附 `#AI創作`。
 - 重跑同一日期時會重用已有圖片及文案，查找該時段的 Buffer 貼文，避免重複排程。若該時段有不同貼文便停止供人工檢查。
 
+## 2026 年 10 月預製十張圖片
+
+- `posts/2026-10-21.jpg` 至 `posts/2026-10-30.jpg` 是按同一虛構人物參考相預先製作的十張不同生活照，已按 Instagram 4:5 尺寸輸出。
+- **Schedule prepared Kelly Instagram photos** 工作流程先用已設定的 OpenAI API key 為每張相生成繁體中文文案；10 月 20 日 11:00 的首篇貼文發佈後，會在當日 12:15（香港時間）嘗試將十張相逐日排至 @kellykellyhk3。若 GitHub 定時工作延遲或 Buffer 暫時無空位，10 月 20 至 30 日每日 12:15 會重試未排程的未來日期。
+- Buffer Free 方案每個頻道同時最多可排十篇；預製圖片和文案會保存在 GitHub，排程回執會記錄在相應 JSON 的 `buffer_post_id`。
+- 10 月 30 日後如要繼續每天自動產生新圖片，OpenAI 專案仍須開放圖片編輯模型。圖片模型未開通前，每日自動產圖工作會失敗。
+
 ## 本機檢查
 
 ```powershell
