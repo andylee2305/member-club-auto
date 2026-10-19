@@ -12,6 +12,28 @@ SPEC.loader.exec_module(daily_post)
 
 
 class DailyPostTests(unittest.TestCase):
+    def test_caption_falls_back_only_for_model_access(self):
+        class AccessError(Exception):
+            status_code = 403
+            code = "model_not_found"
+
+        class Response:
+            output_text = "今朝嘆杯咖啡，慢慢開始新一日。"
+
+        class Client:
+            class responses:
+                @staticmethod
+                def create(**kwargs):
+                    if kwargs["model"] == "gpt-4o-mini":
+                        raise AccessError("No model access")
+                    return Response()
+
+        with patch.dict("os.environ", {"OPENAI_TEXT_MODEL": "gpt-4o-mini,gpt-4.1-mini"}):
+            self.assertEqual(
+                daily_post.generate_caption(Client(), "a cafe"),
+                "今朝嘆杯咖啡，慢慢開始新一日。\n\n#AI創作",
+            )
+
     def test_hong_kong_11_is_utc_03(self):
         self.assertEqual(
             daily_post.iso_utc(daily_post.publication_time(date(2026, 10, 20))),

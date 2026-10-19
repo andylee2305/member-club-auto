@@ -72,6 +72,18 @@ def required_secret(name: str) -> str:
     return value
 
 
+def model_candidates(env_name: str, defaults: tuple[str, ...]) -> tuple[str, ...]:
+    configured = os.getenv(env_name, "").strip()
+    return tuple(item.strip() for item in configured.split(",") if item.strip()) if configured else defaults
+
+
+def is_model_access_error(exc: Exception) -> bool:
+    return getattr(exc, "status_code", None) in (403, 404) and (
+        getattr(exc, "code", None) == "model_not_found"
+        or "does not have access to model" in str(exc)
+    )
+
+
 def graphql(api_key: str, query: str) -> dict:
     response = requests.post(
         BUFFER_URL,
@@ -125,18 +137,25 @@ def preflight(day: date) -> None:
 
 
 def generate_caption(client, scene: str) -> str:
-    response = client.responses.create(
-        model=os.getenv("OPENAI_TEXT_MODEL", "gpt-6-luna"),
-        input=(
-            "Write one Instagram caption in natural Hong Kong Traditional Chinese, first-person, "
-            "for a fictional adult AI woman posting a daily lifestyle photo. "
-            "The pictured scene is: " + scene + ". "
-            "Use a light, warm Cantonese voice, 1-2 short sentences, maximum 90 Chinese characters. "
-            "No invented specific venue, product endorsement, quote marks, markdown or hashtags. "
-            "Return only the caption."
-        ),
-        max_output_tokens=180,
+    prompt = (
+        "Write one Instagram caption in natural Hong Kong Traditional Chinese, first-person, "
+        "for a fictional adult AI woman posting a daily lifestyle photo. "
+        "The pictured scene is: " + scene + ". "
+        "Use a light, warm Cantonese voice, 1-2 short sentences, maximum 90 Chinese characters. "
+        "No invented specific venue, product endorsement, quote marks, markdown or hashtags. "
+        "Return only the caption."
     )
+    response = None
+    candidates = model_candidates("OPENAI_TEXT_MODEL", ("gpt-4o-mini", "gpt-4.1-mini"))
+    for index, model in enumerate(candidates):
+        try:
+            response = client.responses.create(model=model, input=prompt, max_output_tokens=180)
+            print(f"OpenAI caption model: {model}")
+            break
+        except Exception as exc:
+            if not is_model_access_error(exc) or index == len(candidates) - 1:
+                raise
+    assert response is not None
     caption = response.output_text.strip().strip('"“”')
     if not caption or len(caption) > 300:
         raise RuntimeError("OpenAI returned an empty or overly long caption.")
@@ -157,16 +176,26 @@ def generate_photo(client, scene: str) -> bytes:
         "photo with the whole face clearly visible. No text, logos, watermarks, collage, "
         "exaggerated beauty retouching or obvious AI artifacts."
     )
-    with ExitStack() as stack:
-        images = [stack.enter_context(path.open("rb")) for path in references]
-        result = client.images.edit(
-            model=os.getenv("OPENAI_IMAGE_MODEL", "gpt-image-2.5-sunburst"),
-            image=images,
-            prompt=prompt,
-            size="1024x1280",
-            quality="high",
-            output_format="jpeg",
-        )
+    result = None
+    candidates = model_candidates("OPENAI_IMAGE_MODEL", ("gpt-image-2.5-sunburst", "gpt-image-1.5", "gpt-image-1"))
+    for index, model in enumerate(candidates):
+        try:
+            with ExitStack() as stack:
+                images = [stack.enter_context(path.open("rb")) for path in references]
+                result = client.images.edit(
+                    model=model,
+                    image=images,
+                    prompt=prompt,
+                    size="1024x1280" if model.startswith("gpt-image-2") else "1024x1536",
+                    quality="high",
+                    output_format="jpeg",
+                )
+            print(f"OpenAI image model: {model}")
+            break
+        except Exception as exc:
+            if not is_model_access_error(exc) or index == len(candidates) - 1:
+                raise
+    assert result is not None
     encoded = result.data[0].b64_json
     if not encoded:
         raise RuntimeError("OpenAI did not return image data.")

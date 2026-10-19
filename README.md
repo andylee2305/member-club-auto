@@ -37,4 +37,4 @@ python -m venv .venv
 - 如果 GitHub Actions 或 Buffer 發佈失敗，查看 Actions 執行紀錄及 Buffer 貼文狀態，修正後用相同 `target_date` 手動重跑。
 - `posts/` 圖片及 `assets/reference/` 參考相會在 public repo 公開；不要放入不想公開的素材。
 - 每日圖片會令 Git repository 持續增長。長期運作後可改用專門圖片儲存服務。
-- OpenAI API 會按模型、圖片品質及用量收費；如需控制成本，可在 workflow 加入 `OPENAI_IMAGE_MODEL` / `OPENAI_TEXT_MODEL` 環境變數，先確認替代模型支援相同 API 參數。
+- OpenAI API 會按模型、圖片品質及用量收費。預設文案模型依次試 `gpt-4o-mini`、`gpt-4.1-mini`；圖片模型依次試 `gpt-image-2.5-sunburst`、`gpt-image-1.5`、`gpt-image-1`。只有模型存取被拒時才試下一個。可用 `OPENAI_TEXT_MODEL` / `OPENAI_IMAGE_MODEL` 環境變數指定逗號分隔的候選模型。
